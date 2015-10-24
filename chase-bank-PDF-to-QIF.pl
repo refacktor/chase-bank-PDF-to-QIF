@@ -33,26 +33,43 @@ foreach $file (@ARGV) {
 	local @ARGV = ($file);
 	while(<>) { $data .= $_ }
 
-	# extract the year
-	($year) = ($data =~  /(\d\d\d\d) Totals Year-to-Date/);
+	# extract all text marked by "Tj" (PDF Show Text operator)	
+	$text = join("\n", $data =~ /^\s*\[?\((.*?)\)\]?\s*T[Jj]/mg);
+
+	# extract some statement-level info
+	($stmt_month, $stmt_day, $stmt_year) = ($text =~ m[^Statement Date:\n(\d\d)/(\d\d)/(\d\d)$]m);
+	($preBal) = ($text =~ /^Previous Balance\n([\-\$\d,\.]+)$/m);
+	($newBal) = ($text =~ /^New Balance\n([\-\$\d,\.]+)$/m);
 	
-	# extract all text marked by "Tj" (PDF Show Text operator)
-	$text = join("\n", $data =~ /\(([^\)]*)\)Tj/g);
 	#print $text;
+	$stmt_year = 2000 + $stmt_year;
+	$preBal =~ s/[\$,]//g;
+	$newBal =~ s/[\$,]//g;
+	
+	$total = 0.00;
 
 	# Extract the transactions. Looking for a simple sequence of Date, Memo, Amount
-	while($text =~ m:^(\d\d)/(\d\d)\n(.*)\n(\d+\.\d\d)\n$:mg) {
+	while($text =~ m:^(\d\d)/(\d\d)\s*\n(.*)\n(-?\d*\.\d\d)$:mg) {
 
 	  ($month, $day, $memo, $amount) = ($1, $2, $3, $4);  
-	  
-	  print "($month, $day, $memo, $amount)\n";
+
+	  # December transactions in the January statement belong to the previous year
+	  $txn_year = ($stmt_month == 1 && $month == 12) ? $stmt_year - 1 : $stmt_year;
+	  $date = "$month/$day/$txn_year";
 	  
 	  $record->{header} = "Type:Bank";
-	  $record->{date} = "$month/$day/$year";
+	  $record->{date} = $date;
 	  $record->{memo} = $memo;
 	  $record->{amount} = $amount;
 	  
 	  $out->write($record);
+	  $total += $amount;
+	  
+	  print "$date, $memo, $amount\n";	  
+	}
+	$missing = sprintf("%.2f", $newBal - ($preBal + $total));
+	if($missing != 0) {
+		die("WARNING: New Balance $newBal does not equal Previous Balance $preBal plus transactions $total. Missing: $missing\n");
 	}
 }
 
