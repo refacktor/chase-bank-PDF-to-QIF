@@ -31,7 +31,7 @@ foreach $file (@ARGV) {
 	
 	# read the whole PDF file into $data
 	local @ARGV = ($file);
-	while(<>) { $data .= $_ }
+	$data = join('', <>);
 
 	# extract all text marked by "Tj" (PDF Show Text operator)	
 	$text = join("\n", $data =~ /^\s*\[?\((.*?)\)\]?\s*T[Jj]/mg);
@@ -43,15 +43,18 @@ foreach $file (@ARGV) {
 	
 	#print $text;
 	$stmt_year = 2000 + $stmt_year;
-	$preBal =~ s/[\$,]//g;
-	$newBal =~ s/[\$,]//g;
 	
-	$total = 0.00;
+	print "$file: Statement dated $stmt_month/$stmt_day/$stmt_year: Start = $preBal, Ending = $newBal\n";
+	$preBal =~ s/[\$,]//g;  # remove formatting chars
+	$newBal =~ s/[\$,]//g;
+
+	my $total = 0;
 
 	# Extract the transactions. Looking for a simple sequence of Date, Memo, Amount
-	while($text =~ m:^(\d\d)/(\d\d)\s*\n(.*)\n(-?\d*\.\d\d)$:mg) {
+	while($text =~ m:^(\d\d)/(\d\d)\s*\n(.*)\n(\-?\d*(,\d\d\d)*\.\d\d)$:mg) {
 
 	  ($month, $day, $memo, $amount) = ($1, $2, $3, $4);  
+	  $amount =~ s/,//g;
 
 	  # December transactions in the January statement belong to the previous year
 	  $txn_year = ($stmt_month == 1 && $month == 12) ? $stmt_year - 1 : $stmt_year;
@@ -69,7 +72,7 @@ foreach $file (@ARGV) {
 	}
 	$missing = sprintf("%.2f", $newBal - ($preBal + $total));
 	if($missing != 0) {
-		die("WARNING: New Balance $newBal does not equal Previous Balance $preBal plus transactions $total. Missing: $missing\n");
+		die("Transaction total does not match statement: $preBal + $total not equal $newBal\n");
 	}
 }
 
