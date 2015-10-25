@@ -49,6 +49,7 @@ foreach $file (@ARGV) {
 	$newBal =~ s/[\$,]//g;
 	
 	if($fileCount++ == 0) { # add an opening balance into the QIF file for more streamlined importing
+	  my $record;
 	  $record->{header} = "Type:Bank";
 	  $record->{date} = ($stmt_month==1) ? "12/$stmt_day/" . ($stmt_year-1) : ($stmt_month - 1) . "/$stmt_day/$stmt_year";
 	  $record->{memo} = "Opening Balance";
@@ -59,7 +60,12 @@ foreach $file (@ARGV) {
 	my $total = 0;
 
 	# Extract the transactions. Looking for a simple sequence of Date, Memo, Amount
-	while($text =~ m:^(\d\d)/(\d\d)\s*\n(.*)\n(\-?\d*(,\d\d\d)*\.\d\d)$:mg) {
+    while($text =~ m{
+        ^(\d\d)/(\d\d)\s*\n			# transaction date MM/DD
+        (?:\&\n)?					# skip the card transfer indicator "&" on reissued cards
+        (.*)\n						# transaction payee or description
+        (\-?\d*(,\d\d\d)*\.\d\d)$	# transaction amount in #,###.00 format
+    }mgx) {
 
 	  ($month, $day, $memo, $amount) = ($1, $2, $3, $4);  
 	  $amount =~ s/,//g;
@@ -68,9 +74,11 @@ foreach $file (@ARGV) {
 	  $txn_year = ($stmt_month <= 3 && $month >= 10) ? $stmt_year - 1 : $stmt_year;
 	  $date = "$month/$day/$txn_year";
 	  
+	  my $record;
 	  $record->{header} = "Type:Bank";
 	  $record->{date} = $date;
-	  $record->{memo} = $memo;
+	  $record->{payee} = $memo;
+	  $record->{memo} = "Imported from PDF $file";
 	  $record->{amount} = -$amount; # for credit card, negative numbers are payments
 	  $out->write($record);
 	  
