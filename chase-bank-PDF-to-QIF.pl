@@ -64,8 +64,8 @@ foreach $file (@ARGV) {
 	  ($month, $day, $memo, $amount) = ($1, $2, $3, $4);  
 	  $amount =~ s/,//g;
 
-	  # December transactions in the January statement belong to the previous year
-	  $txn_year = ($stmt_month == 1 && $month == 12) ? $stmt_year - 1 : $stmt_year;
+	  # October-December transactions showing up in January-March belong to the previous year.
+	  $txn_year = ($stmt_month <= 3 && $month >= 10) ? $stmt_year - 1 : $stmt_year;
 	  $date = "$month/$day/$txn_year";
 	  
 	  $record->{header} = "Type:Bank";
