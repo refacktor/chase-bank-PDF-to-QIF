@@ -47,6 +47,14 @@ foreach $file (@ARGV) {
 	print "$file: Statement dated $stmt_month/$stmt_day/$stmt_year: Start = $preBal, Ending = $newBal\n";
 	$preBal =~ s/[\$,]//g;  # remove formatting chars
 	$newBal =~ s/[\$,]//g;
+	
+	if($fileCount++ == 0) { # add an opening balance into the QIF file for more streamlined importing
+	  $record->{header} = "Type:Bank";
+	  $record->{date} = ($stmt_month==1) ? "12/$stmt_day/" . ($stmt_year-1) : ($stmt_month - 1) . "/$stmt_day/$stmt_year";
+	  $record->{memo} = "Opening Balance";
+	  $record->{amount} = -$preBal;
+	  $out->write($record);	  
+	}
 
 	my $total = 0;
 
@@ -63,9 +71,9 @@ foreach $file (@ARGV) {
 	  $record->{header} = "Type:Bank";
 	  $record->{date} = $date;
 	  $record->{memo} = $memo;
-	  $record->{amount} = $amount;
-	  
+	  $record->{amount} = -$amount; # for credit card, negative numbers are payments
 	  $out->write($record);
+	  
 	  $total += $amount;
 	  
 	  print "$date, $memo, $amount\n";	  
